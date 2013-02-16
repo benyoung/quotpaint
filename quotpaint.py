@@ -198,44 +198,6 @@ def normal(coords, edge, magnitude):
     return (normal_x, normal_y)
 
 
-def render_double_edge(coords, edge, xoffset, yoffset, colours, width, eps):
-    e = [endpt for endpt in edge]
-    p0 = coords[e[0]] 
-    p1 = coords[e[1]] 
-
-    norm = normal(coords, edge, width*2/3) 
-
-    pts = [  (p0[0]  + norm[0], p0[1]  + norm[1]),
-             (p1[0]  + norm[0], p1[1]  + norm[1]),
-             (p0[0]  - norm[0], p0[1] - norm[1]),
-             (p1[0]  - norm[0], p1[1] - norm[1]), ]
-
-    eps["coords"].extend(pts) 
-    ps = "%f %f %f setrgbcolor "%(colours[0][0]/255.0,colours[0][1]/255.0,colours[0][2]/255.0) 
-    ps += "%d setlinewidth newpath %d %d moveto %d %d lineto stroke" % (width,pts[0][0],
-            pts[0][1],pts[1][0],pts[1][1])
-    eps["ps"].append(ps)
-    ps = "%f %f %f setrgbcolor "%(colours[1][0]/255.0,colours[1][1]/255.0,colours[1][2]/255.0) 
-    ps += "%d setlinewidth newpath %d %d moveto %d %d lineto stroke" % (width,pts[2][0],
-            pts[2][1],pts[3][0],pts[3][1])
-    eps["ps"].append(ps)
-
-    norm = normal(coords, edge, width/2) 
-    draw_these = [[pts[0],pts[1]],[pts[2],pts[3]]]
-    boxes = []
-    for i in range(2):
-        edge = draw_these[i]
-        poly = [
-            (edge[0][0] + xoffset + norm[0], edge[0][1] + yoffset + norm[1]),
-            (edge[1][0] + xoffset + norm[0], edge[1][1] + yoffset + norm[1]),
-            (edge[1][0] + xoffset - norm[0], edge[1][1] + yoffset - norm[1]),
-            (edge[0][0] + xoffset - norm[0], edge[0][1] + yoffset - norm[1]), ]
-    
-        boxes += pygame.draw.polygon(screen, colours[i], poly, 0)
-
-
-    return boxes
-
 def render_multiple_edge(coords, edge, multiplicity, xoffset, yoffset, width, eps):
     e = [endpt for endpt in edge]
     p0 = coords[e[0]] 
@@ -385,17 +347,6 @@ def render_boundary(renderables, which_side, xoffset, yoffset, colour, eps):
         if rhomb_edges[edge] == 1:
             render_line(dualcoords, edge, xoffset, yoffset, colour, width, eps)
 
-# Draw doubled edges in a pair of matchings.
-def render_doubled_edges(renderables, xoffset, yoffset, colors, eps):
-    coords = renderables["coords"] 
-    matchings = renderables["matchings"]
-    lengths = renderables["lengths"]
-    m1 = matchings[0]
-    m2 = matchings[1]
-    for e in m1.keys():
-        if(e in m2):
-            render_double_edge(coords, e, xoffset, yoffset, colors, lengths["dimer_width"],eps)
-
 # Draw edges in some multiply-overlaid matchings.
 def render_multiple_edges(renderables, xoffset, yoffset, component_names, eps):
     coords = renderables["coords"] 
@@ -413,24 +364,6 @@ def render_multiple_edges(renderables, xoffset, yoffset, component_names, eps):
     for e in multiplicity:
         render_multiple_edge(coords, e, multiplicity[e], xoffset, yoffset, lengths["dimer_width"],eps)
 
-
-# Draw edges that are not doubled in a pair of matchings.
-def render_xor_edges(renderables, xoffset, yoffset, colors,eps):
-    coords = renderables["coords"]
-    matchings = renderables["matchings"]
-    lengths = renderables["lengths"]
-    boxes = []
-    m0 = matchings[0]
-    m1 = matchings[1]
-    for e in m0.keys():
-        if e not in m1:
-            bb = render_edge(coords, e, xoffset, yoffset, colors[0], lengths["dimer_width"],eps)     
-            boxes.append(("matchededge", e, 0, bb))
-    for e in m1.keys():
-        if e not in m0:
-            bb = render_edge(coords, e, xoffset, yoffset, colors[1], lengths["dimer_width"],eps)
-            boxes.append(("matchededge", e, 1, bb))
-    return boxes
 
 
 #===================================================================
@@ -598,16 +531,6 @@ def showhide_callback(args):
     print "Toggle ", layer
     show[layer] = not show[layer]
 
-# Toggle visibility of one of the 3 displays; resize pictures.
-def showhide_picture_callback(args):
-    renderables = args["renderables"]
-    pictures = args["pictures"]
-    show = renderables["show"]
-    print "Showing some pictures:", pictures
-    for picture in ["A", "Center", "B"]:
-        show[picture] = (picture in pictures)
-    compute_picture_sizes(renderables)
-    
 def render_dimer_buttons(x,y, side, renderables, font, eps):
     buttons = []
     matchings = renderables["matchings"] 
@@ -650,7 +573,6 @@ def render_center_buttons(x,y,renderables, font, eps):
     buttonrow2 = [
         ("Dimer B", showhide_callback, {"layer":"center_B_matching", "show":show} ),
         ("Border B", showhide_callback, {"layer":"center_B_boundary", "show":show} ),
-        ("Double edges", showhide_callback, {"layer":"center_doubled_edges", "show":show} ),
         ("EPS", eps_callback, {"eps":eps}),
         ]
     buttons =  draw_button_row(x, y, 5, font, buttonrow)
@@ -670,20 +592,6 @@ def render_os_buttons(x, y, filenames, renderables, font):
                             "renderables":renderables }) for f in files])
     return draw_button_row(x,y,5,font,buttonrow)
 
-def render_showhide_buttons(x,y, renderables, font):
-    buttonrow = [
-        ("Just A", showhide_picture_callback, {"pictures":["A"], "renderables":renderables} ),
-        ("A union B", showhide_picture_callback,{"pictures":["Center"], "renderables":renderables} ),
-        ("Just B", showhide_picture_callback, {"pictures":["B"], "renderables":renderables} ),
-        ("A beside B", showhide_picture_callback,{"pictures":["A","B"], "renderables":renderables} ),
-        ("All three", showhide_picture_callback,{"pictures":["A","Center", "B"], 
-                "renderables":renderables} ),
-        ("Clear highlight", clear_highlight_callback,{"renderables":renderables} )
-
-        #("Full screen", fullscreen_callback, {"renderables":renderables}),
-        
-    ]
-    return draw_button_row(x,y,5,font,buttonrow)
 
 def render_global_adjusters(x,y, renderables, font):
     adjusterlist = [
@@ -804,7 +712,6 @@ def render_everything(renderables,filenames, font):
     
     y = lengths["screen_height"] - lengths["button_height"]
     
-    boxes += render_showhide_buttons(10,y, renderables, font)
     boxes += render_global_adjusters(400, y, renderables, font)
     y -= lengths["button_height"]
     boxes += render_os_buttons(10,y,filenames,renderables,font)
