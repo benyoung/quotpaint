@@ -197,6 +197,7 @@ def normal(coords, edge, magnitude):
     normal_y *= magnitude/normal_length
     return (normal_x, normal_y)
 
+
 def render_double_edge(coords, edge, xoffset, yoffset, colours, width, eps):
     e = [endpt for endpt in edge]
     p0 = coords[e[0]] 
@@ -234,6 +235,42 @@ def render_double_edge(coords, edge, xoffset, yoffset, colours, width, eps):
 
 
     return boxes
+
+def render_multiple_edge(coords, edge, multiplicity, xoffset, yoffset, width, eps):
+    e = [endpt for endpt in edge]
+    p0 = coords[e[0]] 
+    p1 = coords[e[1]] 
+
+    norm = normal(coords, edge, width*2/3) 
+
+    lines = []
+    for skip in range(-multiplicity+1, multiplicity, 2):
+        new_line = ((p0[0]  + skip * norm[0], p0[1]  + skip * norm[1]),
+                    (p1[0]  + skip * norm[0], p1[1]  + skip * norm[1]))
+        lines.append(new_line)
+        eps["coords"].extend(new_line) 
+
+    ps = "0 0 0 setrgbcolor "
+    for line in lines:
+        ps += "%d setlinewidth newpath %d %d moveto %d %d lineto stroke" % (width,line[0][0], line[0][1],line[1][0],line[1][1])
+
+    eps["ps"].append(ps)
+
+    norm = normal(coords, edge, width/2) 
+    boxes = []
+    skip = -multiplicity
+    for edge in lines:
+        poly = [
+            (edge[0][0] + xoffset + norm[0], edge[0][1] + yoffset + norm[1]),
+            (edge[1][0] + xoffset + norm[0], edge[1][1] + yoffset + norm[1]),
+            (edge[1][0] + xoffset - norm[0], edge[1][1] + yoffset - norm[1]),
+            (edge[0][0] + xoffset - norm[0], edge[0][1] + yoffset - norm[1]), ]
+    
+        boxes += pygame.draw.polygon(screen, black, poly, 0)
+    return boxes
+
+
+
 
     
 def render_vertex(coords, v, xoffset, yoffset, colour):
@@ -358,6 +395,24 @@ def render_doubled_edges(renderables, xoffset, yoffset, colors, eps):
     for e in m1.keys():
         if(e in m2):
             render_double_edge(coords, e, xoffset, yoffset, colors, lengths["dimer_width"],eps)
+
+# Draw edges in some multiply-overlaid matchings.
+def render_multiple_edges(renderables, xoffset, yoffset, component_names, eps):
+    coords = renderables["coords"] 
+    matchings = renderables["matchings"]
+    lengths = renderables["lengths"]
+
+# matchings are stored in a list right now.  wanna put them in a dict.
+    matching_dict = {"A":matchings[0], "B":matchings[1]} # this is a hack
+
+    multiplicity = defaultdict(int)
+    for component in component_names:
+        matching = matching_dict[component]
+        for e in matching:
+            multiplicity[e] += 1
+    for e in multiplicity:
+        render_multiple_edge(coords, e, multiplicity[e], xoffset, yoffset, lengths["dimer_width"],eps)
+
 
 # Draw edges that are not doubled in a pair of matchings.
 def render_xor_edges(renderables, xoffset, yoffset, colors,eps):
@@ -641,6 +696,85 @@ def render_global_adjusters(x,y, renderables, font):
     ]
     return draw_adjuster_row(x,y,5,renderables["lengths"],font,  adjusterlist)
 
+#====================================================================
+# Render a picture of just one matching, with appropriate controls.
+def render_single_picture(pic_name, pic_color, renderables, filenames, font):
+    background = renderables["background"] 
+    matchings = renderables["matchings"] 
+    hexagons = renderables["hexagons"]
+    rhombi = renderables["rhombi"]
+    coords = renderables["coords"]
+    dualcoords = renderables["dualcoords"]
+    show = renderables["show"]
+    lengths = renderables["lengths"]
+
+    current_file = filenames["input_file"] + "_" + pic_name + ".eps"
+     
+    y = lengths["y"]
+    x = lengths["x"+pic_name]
+    window = lengths["window"]
+    boxes = []
+    if show[pic_name]:
+        eps = {"coords":[], "ps":[], "filename":current_file}
+        if show[pic_name + "_background"]:
+            boxes += render_background(renderables, x, y, 0, eps)
+        if show[pic_name + "_boxes"]:
+            render_boxes(renderables,0,x, y, pic_color, eps)
+        if show["Highlight"]:
+            render_highlight(renderables,0, x, y, hi_color, eps)
+        if show[pic_name + "_matching"]:
+            render_matching(renderables,0, x, y, pic_color, eps)
+        if show[pic_name + "_boundary"]:
+            render_boundary(renderables,  0, x, y, pic_color, eps)
+        if show[pic_name + "_tiling"]:
+            render_tiling(renderables,0, x, y, pic_color, eps)
+        if show[pic_name + "_centers"]:
+            boxes += render_active_hex_centers(renderables, x, y, 0,eps)
+        boxes += render_dimer_buttons(10+x, 10, 0, renderables, font, eps)
+        renderables["eps"+pic_name] = eps
+        if eps_only: # hack to render eps programattically
+            eps_callback({"eps":eps})
+    return boxes
+
+#=============================================================
+# Render a picture of some overlaid matchings
+def render_overlay(pic_name, component_names, renderables, filenames, font):
+    background = renderables["background"] 
+    matchings = renderables["matchings"] 
+    hexagons = renderables["hexagons"]
+    rhombi = renderables["rhombi"]
+    coords = renderables["coords"]
+    dualcoords = renderables["dualcoords"]
+    show = renderables["show"]
+    lengths = renderables["lengths"]
+
+    all_names = "" # Concatenate names of all components into a string
+    for name in component_names:
+        all_names += name
+    current_file = filenames["input_file"] + "_" + all_names + ".eps"
+     
+    x= lengths["x"+pic_name]
+    y = lengths["y"]
+    window = lengths["window"]
+
+    boxes = []
+    if show[pic_name]:
+        eps= {"coords":[], "ps":[], "filename":current_file}
+        if show[pic_name + "_background"]:
+            render_background(renderables, x, y, 1, eps)
+        if show["Highlight"]:
+            render_highlight(renderables,0, x, y, hi_color, eps)
+            render_highlight(renderables,1, x, y, hi_color, eps)
+        render_multiple_edges(renderables, x, y, component_names, eps)
+        
+        boxes += render_center_buttons(10+x, 10, renderables, font, eps)
+        renderables["eps"+pic_name] = eps
+        if eps_only: # hack to render eps programattically
+            eps_callback({"eps":eps})
+
+    return boxes
+
+
 #=============================================================
 # Draw everything.  Return a list of clickable boxes.
 def render_everything(renderables,filenames, font):
@@ -656,81 +790,18 @@ def render_everything(renderables,filenames, font):
     current_file = filenames["input_file"]
      
     y = lengths["y"]
-    xA =lengths["xA"]
-    xB = lengths["xB"]
-    xCenter = lengths["xCenter"]
     window = lengths["window"]
 
     screen.fill(white)
     
     boxes = []
 
-    if show["A"]:
-        epsA = {"coords":[], "ps":[], "filename":current_file + "_A.eps"}
-        if show["A_background"]:
-            boxes += render_background(renderables, xA, y, 0, epsA)
-        if show["A_boxes"]:
-            render_boxes(renderables,0,xA, y, A_color, epsA)
-        if show["Highlight"]:
-            render_highlight(renderables,0, xA, y, hi_color, epsA)
-        if show["A_matching"]:
-            render_matching(renderables,0, xA, y, A_color, epsA)
-        if show["A_boundary"]:
-            render_boundary(renderables,  0, xA, y, A_color, epsA)
-        if show["A_tiling"]:
-            render_tiling(renderables,0, xA, y, A_color, epsA)
-        if show["A_centers"]:
-            boxes += render_active_hex_centers(renderables, xA, y, 0,epsA)
-        boxes += render_dimer_buttons(10+xA, 10, 0, renderables, font, epsA)
-        renderables["epsA"] = epsA
-        if eps_only: # hack to render eps programattically
-            eps_callback({"eps":epsA})
-
-    if show["B"]:
-        epsB = {"coords":[], "ps":[], "filename": current_file + "_B.eps"}
-        if show["B_background"]:
-            boxes += render_background(renderables, xB, y, 1, epsB)
-        if show["B_boxes"]:
-            render_boxes(renderables,1,xB, y, B_color, epsB)
-        if show["Highlight"]:
-            render_highlight(renderables,1, xB, y, hi_color, epsB)
-        if show["B_matching"]:
-            render_matching(renderables,1, xB, y, B_color, epsB)
-        if show["B_boundary"]:
-            render_boundary(renderables, 1, xB, y, B_color, epsB)
-        if show["B_tiling"]:
-            render_tiling(renderables, 1, xB, y, B_color, epsB)
-        if show["B_centers"]:
-            boxes += render_active_hex_centers(renderables, xB, y, 1, epsB)
-        boxes += render_dimer_buttons(10+xB, 10, 1, renderables, font, epsB)
-        renderables["epsB"] = epsB
-        if eps_only: # hack to render eps programattically
-            eps_callback({"eps":epsB})
-        
-    if show["Center"]:
-        epsCenter = {"coords":[], "ps":[], "filename":current_file + "_AB.eps"}
-        if show["center_background"]:
-            render_background(renderables, xCenter, y, 1, epsCenter)
-        if show["Highlight"]:
-            render_highlight(renderables,0, xCenter, y, hi_color, epsCenter)
-            render_highlight(renderables,1, xCenter, y, hi_color, epsCenter)
-        if show["center_A_boundary"]:
-            render_boundary(renderables, 0, xCenter+lengths["overlay_offset"], y, A_color, epsCenter)
-        if show["center_B_boundary"]:
-            render_boundary(renderables, 1, xCenter-lengths["overlay_offset"], y, B_color, epsCenter)
-        if show["center_A_matching"] and not show["center_B_matching"]:
-            boxes += render_matching(renderables,0, xCenter, y, A_color, epsCenter)
-        if show["center_B_matching"] and not show["center_A_matching"]:
-            boxes += render_matching(renderables,1, xCenter, y, B_color, epsCenter)
-        if show["center_A_matching"] and show["center_B_matching"]:
-            boxes += render_xor_edges(renderables, xCenter, y, [A_color, B_color], epsCenter)
-            if show["center_doubled_edges"]: 
-                render_doubled_edges(renderables, xCenter, y, [A_color, B_color], epsCenter)
-        boxes += render_center_buttons(10+xCenter, 10, renderables, font, epsCenter)
-        renderables["epsCenter"] = epsCenter
-        if eps_only: # hack to render eps programattically
-            eps_callback({"eps":epsCenter})
-
+    A_boxes = render_single_picture("A", A_color,renderables,filenames, font) 
+    B_boxes = render_single_picture("B", B_color,renderables,filenames, font) 
+    boxes.extend(A_boxes)
+    boxes.extend(B_boxes)
+    render_overlay("Center", ["A","B"], renderables, filenames, font)    
+    
     y = lengths["screen_height"] - lengths["button_height"]
     
     boxes += render_showhide_buttons(10,y, renderables, font)
@@ -1065,12 +1136,12 @@ def load(basename):
             "B_centers": True,
             "B_boxes": False,
 
-            "center_background": False,
-            "center_A_matching": True,
-            "center_B_matching": True,
-            "center_A_boundary": True,
-            "center_B_boundary": True,
-            "center_doubled_edges": True,
+            "Center_background": False,
+            "Center_A_matching": True,
+            "Center_B_matching": True,
+            "Center_A_boundary": True,
+            "Center_B_boundary": True,
+            "Center_doubled_edges": True,
         }
     if os.path.isfile(basename + "lengths.pkl"):
         lengthsfile = open(basename + "lengths.pkl", "rb")
