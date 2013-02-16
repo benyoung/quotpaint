@@ -1023,7 +1023,7 @@ def compute_picture_sizes(renderables):
 
 
 #===================================================================
-# Load a dimerpaint configuration.
+# Load a quotpaint configuration.
 def load(basename):
     if not os.path.isdir(basename):
         exit("Can't find "+basename)
@@ -1184,7 +1184,7 @@ pygame.mouse.set_cursor(*pygame.cursors.broken_x)
 try:
     data_directory = sys.argv[1]
 except IndexError:
-    data_directory = "dimerpaint"
+    data_directory = "quotpaint"
 
 try:
     input_file = sys.argv[2]
