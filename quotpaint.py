@@ -25,9 +25,11 @@ grey     = (0x7f,0x7f,0x7f)
 # Edit these lines to alter the colors used.
 
 hi_color = green
-A_color = black
-B_color = red
-center_color = blue
+A_color = red
+B_color = green
+C_color = blue
+D_color = black
+center_color = grey
 
 # read in a list of vertices in format (row, column, x, y).  (row, column) just
 # functions as a key.  Store in a dictionary keyed by the above tuple.
@@ -692,11 +694,13 @@ def render_everything(renderables,filenames, font):
     
     boxes = []
 
-    A_boxes = render_single_picture("A", A_color,renderables,filenames, font) 
-    B_boxes = render_single_picture("B", B_color,renderables,filenames, font) 
-    boxes.extend(A_boxes)
-    boxes.extend(B_boxes)
-    render_overlay("Center", ["A","B"], renderables, filenames, font)    
+
+    boxes.extend(render_single_picture("A", A_color,renderables,filenames, font)) 
+    boxes.extend(render_single_picture("B", B_color,renderables,filenames, font)) 
+    boxes.extend(render_single_picture("C", C_color,renderables,filenames, font)) 
+    boxes.extend(render_single_picture("D", D_color,renderables,filenames, font)) 
+
+    #render_overlay("Center", ["A","B"], renderables, filenames, font)    
     
     y = lengths["screen_height"] - lengths["button_height"]
     
@@ -929,10 +933,11 @@ def save(basename, renderables):
 def compute_picture_sizes(renderables):
     lengths = renderables["lengths"]
     show = renderables["show"]
+    matchings =renderables["matchings"]
     picturecount = 0
-    if show["A"]: picturecount += 1
-    if show["B"]: picturecount += 1
-    if show["Center"]: picturecount += 1
+    for matching_name in matchings:
+        if show[matching_name]: picturecount += 1
+    #if show["Center"]: picturecount += 1
 
     screensize = screen.get_size()
 
@@ -951,15 +956,21 @@ def compute_picture_sizes(renderables):
     lengths["window"] = window
 
 # Compute x coordinates at which to draw pictures
-    lengths["xA"] = int((width - window * picturecount)/2)
-    if(show["A"]):
-        lengths["xCenter"] = lengths["xA"] + window
-    else:
-        lengths["xCenter"] = lengths["xA"]
-    if(show["Center"]):
-        lengths["xB"] = lengths["xCenter"] + window
-    else:
-        lengths["xB"] = lengths["xCenter"]
+#    lengths["xA"] = int((width - window * picturecount)/2)
+#    if(show["A"]):
+#        lengths["xCenter"] = lengths["xA"] + window
+#    else:
+#        lengths["xCenter"] = lengths["xA"]
+#    if(show["Center"]):
+#        lengths["xB"] = lengths["xCenter"] + window
+#    else:
+#        lengths["xB"] = lengths["xCenter"]
+
+    x_offset = int((width - window * picturecount)/2)
+    for matching_name in sorted(matchings.keys()):
+        if show[matching_name]: 
+            lengths["x"+matching_name] = x_offset
+            x_offset += window
 
     renderables["coords"] = copy.deepcopy(renderables["unscaled_coords"])
     renderables["dualcoords"] = copy.deepcopy(renderables["unscaled_dualcoords"])
