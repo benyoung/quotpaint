@@ -347,7 +347,7 @@ def render_boundary(renderables, which_side, xoffset, yoffset, colour, eps):
             render_line(dualcoords, edge, xoffset, yoffset, colour, width, eps)
 
 # Draw edges in some multiply-overlaid matchings.
-def render_multiple_edges(renderables, xoffset, yoffset, component_names, eps):
+def render_multiple_edges(renderables, xoffset, yoffset, component_names, signs, eps):
     coords = renderables["coords"] 
     matchings = renderables["matchings"]
     lengths = renderables["lengths"]
@@ -357,9 +357,10 @@ def render_multiple_edges(renderables, xoffset, yoffset, component_names, eps):
     for component in component_names:
         matching = matchings[component]
         for e in matching:
-            multiplicity[e] += 1
+            multiplicity[e] += signs[component]
     for e in multiplicity:
-        render_multiple_edge(coords, e, multiplicity[e], xoffset, yoffset, lengths["dimer_width"],eps)
+        if multiplicity[e] > 0:
+            render_multiple_edge(coords, e, multiplicity[e], xoffset, yoffset, lengths["dimer_width"],eps)
 
 
 
@@ -633,7 +634,7 @@ def render_single_picture(pic_name, pic_color, renderables, filenames, font):
 
 #=============================================================
 # Render a picture of some overlaid matchings
-def render_overlay(pic_name, component_names, renderables, filenames, font):
+def render_overlay(pic_name, component_names, signs, renderables, filenames, font):
     background = renderables["background"] 
     matchings = renderables["matchings"] 
     hexagons = renderables["hexagons"]
@@ -660,7 +661,7 @@ def render_overlay(pic_name, component_names, renderables, filenames, font):
         # Broke this when I moved to render_multiple_edges - maybe fix later if needed?
         #if show["Highlight"]:  
         #    render_highlight(renderables,pic_name, x, y, hi_color, eps)
-        render_multiple_edges(renderables, x, y, component_names, eps)
+        render_multiple_edges(renderables, x, y, component_names, signs, eps)
         
         boxes += render_center_buttons(10+x, y+10, renderables, font, eps)
         renderables["eps"+pic_name] = eps
@@ -691,12 +692,17 @@ def render_everything(renderables,filenames, font):
     
     boxes = []
 
-
+    
+    additive_overlay = {"A":1,"B":1,"C":1,"D":1}
+    quot_overlay = {"A":1,"B":1,"C":1,"D":-1}
     for matching in matchings:
         color = matching_colors[matching]
         boxes.extend(render_single_picture(matching, color,renderables,filenames, font)) 
         if(matching != "D"):
-            render_overlay(matching, [matching, "D"], renderables, filenames, font)
+            render_overlay(matching, [matching, "D"], additive_overlay, renderables, filenames, font)
+        else:
+            render_overlay(matching, ["A","B","C","D"], quot_overlay, renderables, filenames, font)
+
 
 
     #render_overlay("Center", ["A","B"], renderables, filenames, font)    
