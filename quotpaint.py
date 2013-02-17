@@ -353,12 +353,10 @@ def render_multiple_edges(renderables, xoffset, yoffset, component_names, eps):
     matchings = renderables["matchings"]
     lengths = renderables["lengths"]
 
-# matchings are stored in a list right now.  wanna put them in a dict.
-    matching_dict = {"A":matchings[0], "B":matchings[1]} # this is a hack
 
     multiplicity = defaultdict(int)
     for component in component_names:
-        matching = matching_dict[component]
+        matching = matchings[component]
         for e in matching:
             multiplicity[e] += 1
     for e in multiplicity:
@@ -538,10 +536,7 @@ def render_dimer_buttons(x,y, side, renderables, font, eps):
     show = renderables["show"]
     args = {"side":side, "matching":matchings[side], "hexagons":hexagons}
     filename = eps["filename"]
-    if(side==0):
-        prefix = "A_"
-    else:
-        prefix = "B_"
+    prefix = side + "_"
 
     buttonrow1 = [
         ("Graph", showhide_callback, {"layer":prefix+"background", "show":show}),
@@ -566,17 +561,10 @@ def render_center_buttons(x,y,renderables, font, eps):
     buttons = []
     show = renderables["show"]
     buttonrow = [
-        ("Dimer A", showhide_callback, {"layer":"center_A_matching", "show":show} ),
-        ("Border A", showhide_callback, {"layer":"center_A_boundary", "show":show} ),
         ("Background", showhide_callback, {"layer":"center_background", "show":show} ),
-        ]
-    buttonrow2 = [
-        ("Dimer B", showhide_callback, {"layer":"center_B_matching", "show":show} ),
-        ("Border B", showhide_callback, {"layer":"center_B_boundary", "show":show} ),
         ("EPS", eps_callback, {"eps":eps}),
         ]
-    buttons =  draw_button_row(x, y, 5, font, buttonrow)
-    return buttons+draw_button_row(x, y+20, 5, font, buttonrow2)
+    return  draw_button_row(x, y, 5, font, buttonrow)
 
 def render_os_buttons(x, y, filenames, renderables, font):
     buttons = []
@@ -625,20 +613,20 @@ def render_single_picture(pic_name, pic_color, renderables, filenames, font):
     if show[pic_name]:
         eps = {"coords":[], "ps":[], "filename":current_file}
         if show[pic_name + "_background"]:
-            boxes += render_background(renderables, x, y, 0, eps)
+            boxes += render_background(renderables, x, y, pic_name, eps)
         if show[pic_name + "_boxes"]:
-            render_boxes(renderables,0,x, y, pic_color, eps)
+            render_boxes(renderables,pic_name,x, y, pic_color, eps)
         if show["Highlight"]:
-            render_highlight(renderables,0, x, y, hi_color, eps)
+            render_highlight(renderables,pic_name, x, y, hi_color, eps)
         if show[pic_name + "_matching"]:
-            render_matching(renderables,0, x, y, pic_color, eps)
+            render_matching(renderables,pic_name, x, y, pic_color, eps)
         if show[pic_name + "_boundary"]:
-            render_boundary(renderables,  0, x, y, pic_color, eps)
+            render_boundary(renderables,  pic_name, x, y, pic_color, eps)
         if show[pic_name + "_tiling"]:
-            render_tiling(renderables,0, x, y, pic_color, eps)
+            render_tiling(renderables,pic_name, x, y, pic_color, eps)
         if show[pic_name + "_centers"]:
-            boxes += render_active_hex_centers(renderables, x, y, 0,eps)
-        boxes += render_dimer_buttons(10+x, 10, 0, renderables, font, eps)
+            boxes += render_active_hex_centers(renderables, x, y, pic_name,eps)
+        boxes += render_dimer_buttons(10+x, 10, pic_name, renderables, font, eps)
         renderables["eps"+pic_name] = eps
         if eps_only: # hack to render eps programattically
             eps_callback({"eps":eps})
@@ -669,10 +657,10 @@ def render_overlay(pic_name, component_names, renderables, filenames, font):
     if show[pic_name]:
         eps= {"coords":[], "ps":[], "filename":current_file}
         if show[pic_name + "_background"]:
-            render_background(renderables, x, y, 1, eps)
-        if show["Highlight"]:
-            render_highlight(renderables,0, x, y, hi_color, eps)
-            render_highlight(renderables,1, x, y, hi_color, eps)
+            render_background(renderables, x, y, pic_name, eps)
+        # Broke this when I moved to render_multiple_edges - maybe fix later if needed?
+        #if show["Highlight"]:  
+        #    render_highlight(renderables,pic_name, x, y, hi_color, eps)
         render_multiple_edges(renderables, x, y, component_names, eps)
         
         boxes += render_center_buttons(10+x, 10, renderables, font, eps)
@@ -828,30 +816,6 @@ def find_path(adj1, adj2, start):
 
     return path
 
-# Flip a path in two matchings, starting at an edge in the first.
-def flip_path(matchings, m1, m2, unordered_edge):
-    edge = [endpoint for endpoint in unordered_edge]
-    adj1 = adjacency_map(matchings[m1])
-    adj2 = adjacency_map(matchings[m2])
-    path = find_path(adj1, adj2, edge[0])
-
-    # don't do anything if user clicked a doubled edge.
-    if(len(path) == 3 and path[0] == path[2]): return 
-
-    # make lists of edges corresponding to the path
-    loop1 = []
-    loop2 = []
-    for i in range(len(path) - 1):
-        e = frozenset([path[i], path[i+1]])
-        if e in matchings[m1]: loop1.append(e)
-        if e in matchings[m2]: loop2.append(e)
-    for e in loop1:
-        del matchings[m1][e]
-        matchings[m2][e] = 1
-    for e in loop2:
-        del matchings[m2][e]
-        matchings[m1][e] = 1
-
 #============================================================================
 # Flip one hexagon.
 def flip_hex(matching, hexagons, index):
@@ -948,8 +912,10 @@ def save(basename, renderables):
     matchings = renderables["matchings"]
     show = renderables["show"]
     lengths = renderables["lengths"]
-    write_edges(matchings[0], basename + "A.edge")
-    write_edges(matchings[1], basename + "B.edge")
+    write_edges(matchings["A"], basename + "A.edge")
+    write_edges(matchings["B"], basename + "B.edge")
+    write_edges(matchings["C"], basename + "C.edge")
+    write_edges(matchings["D"], basename + "D.edge")
     showfile = open(basename + "show.pkl", "wb")
     pickle.dump(show, showfile)
     showfile.close()
@@ -1016,7 +982,9 @@ def load(basename):
 
     matching_A = read_edges(basename + "A.edge")
     matching_B = read_edges(basename + "B.edge")
-    matchings = [matching_A, matching_B]
+    matching_C = read_edges(basename + "C.edge")
+    matching_D = read_edges(basename + "D.edge")
+    matchings = {"A":matching_A, "B":matching_B, "C":matching_C, "D":matching_D}
 
     if os.path.isfile(basename + "show.pkl"):
         showfile = open(basename + "show.pkl", "rb")
@@ -1024,24 +992,8 @@ def load(basename):
         showfile.close()
     else:
         show = {
-            "A": True,
-            "B": True,
             "Center": True,
             "Highlight": True,
-
-            "A_background": True,
-            "A_matching": True,
-            "A_tiling": False,
-            "A_boundary": False,
-            "A_centers": True,
-            "A_boxes": False,
-
-            "B_background": True,
-            "B_matching": True,
-            "B_tiling": False,
-            "B_boundary": False,
-            "B_centers": True,
-            "B_boxes": False,
 
             "Center_background": False,
             "Center_A_matching": True,
@@ -1050,6 +1002,15 @@ def load(basename):
             "Center_B_boundary": True,
             "Center_doubled_edges": True,
         }
+        for matching in ["A","B","C","D"]:
+            show[matching] = True
+            show[matching+"_background"]= True
+            show[matching+"_matching"]= True
+            show[matching+"_tiling"]= False
+            show[matching+"_boundary"]= False
+            show[matching+"_centers"]= True
+            show[matching+"_boxes"]= False
+
     if os.path.isfile(basename + "lengths.pkl"):
         lengthsfile = open(basename + "lengths.pkl", "rb")
         lengths = pickle.load(lengthsfile)
@@ -1074,7 +1035,7 @@ def load(basename):
         if param not in lengths:
             lengths[param] = default_lengths[param]
 
-    renderables = {"highlight":[{},{}], # highlighted edges on left and right
+    renderables = {"highlight":{"A":{},"B":{},"C":{},"D":{}}, # highlighted edges on left and right
                    "background":background, 
                    "matchings":matchings, 
                    "hexagons":hexagons, 
@@ -1118,34 +1079,6 @@ def highlight_hexagon(renderables, hexagon, side):
         for edge in edges:
             highlight[side][edge] = 1 
 
-def highlight_path(renderables, m0, m1, unordered_edge):
-    matchings = renderables["matchings"]
-    edge = [endpoint for endpoint in unordered_edge]
-    adj0 = adjacency_map(matchings[m0])
-    adj1 = adjacency_map(matchings[m1])
-    path = find_path(adj0, adj1, edge[0])
-
-    #list of edges corresponding to the path
-    loop = []
-    all_highlighted = True
-
-    for i in range(len(path) - 1):
-        e = frozenset([path[i], path[i+1]])
-        loop.append(e)
-        if e not in renderables["highlight"][m0]: 
-            all_highlighted = False
-        if e not in renderables["highlight"][m1]:
-            all_highlighted = False
-
-    if all_highlighted:
-        for e in loop:
-            del renderables["highlight"][m0][e]
-            del renderables["highlight"][m1][e]
-    else:
-        for e in loop:
-            renderables["highlight"][m0][e] = 1
-            renderables["highlight"][m1][e] = 1
- 
 
 #===================================================================
 # Main program
@@ -1228,12 +1161,6 @@ while done==False:
                         else:
                             print "adding"
                             matchings[side][edge] = 1
-                elif objtype == "matchededge":
-                    (objtype, matchededge, side, box) = bounding_box_data[box_index]
-                    if event.button == 3:
-                        highlight_path(renderables, side, 1-side, matchededge)
-                    else:
-                        flip_path(matchings, side, 1-side, matchededge)
                 elif objtype == "button":
                     (objtype, args, callback, bb) = bounding_box_data[box_index]
                     callback(args)
