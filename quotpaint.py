@@ -25,10 +25,7 @@ grey     = (0x7f,0x7f,0x7f)
 # Edit these lines to alter the colors used.
 
 hi_color = green
-A_color = red
-B_color = green
-C_color = blue
-D_color = black
+matching_colors = {"A":red, "B":green, "C":blue, "D":black}
 center_color = grey
 
 # read in a list of vertices in format (row, column, x, y).  (row, column) just
@@ -652,7 +649,7 @@ def render_overlay(pic_name, component_names, renderables, filenames, font):
     current_file = filenames["input_file"] + "_" + all_names + ".eps"
      
     x= lengths["x"+pic_name]
-    y = lengths["y"]
+    y = lengths["y_overlay"]
     window = lengths["window"]
 
     boxes = []
@@ -665,7 +662,7 @@ def render_overlay(pic_name, component_names, renderables, filenames, font):
         #    render_highlight(renderables,pic_name, x, y, hi_color, eps)
         render_multiple_edges(renderables, x, y, component_names, eps)
         
-        boxes += render_center_buttons(10+x, 10, renderables, font, eps)
+        boxes += render_center_buttons(10+x, y+10, renderables, font, eps)
         renderables["eps"+pic_name] = eps
         if eps_only: # hack to render eps programattically
             eps_callback({"eps":eps})
@@ -695,10 +692,12 @@ def render_everything(renderables,filenames, font):
     boxes = []
 
 
-    boxes.extend(render_single_picture("A", A_color,renderables,filenames, font)) 
-    boxes.extend(render_single_picture("B", B_color,renderables,filenames, font)) 
-    boxes.extend(render_single_picture("C", C_color,renderables,filenames, font)) 
-    boxes.extend(render_single_picture("D", D_color,renderables,filenames, font)) 
+    for matching in matchings:
+        color = matching_colors[matching]
+        boxes.extend(render_single_picture(matching, color,renderables,filenames, font)) 
+        if(matching != "D"):
+            render_overlay(matching, [matching, "D"], renderables, filenames, font)
+
 
     #render_overlay("Center", ["A","B"], renderables, filenames, font)    
     
@@ -948,8 +947,8 @@ def compute_picture_sizes(renderables):
     if picturecount > 0:
         window = int(screensize[0] / picturecount)
     aspect = aspectratio(renderables["dualcoords"])
-    if int(height * aspect) < window:
-        window = int(height * aspect)
+    if int(height * aspect / 2) < window:
+        window = int(height * aspect / 2)
 
     lengths["screen_width"] = screensize[0]
     lengths["screen_height"] = screensize[1]
@@ -972,6 +971,7 @@ def compute_picture_sizes(renderables):
             lengths["x"+matching_name] = x_offset
             x_offset += window
 
+    lengths["y_overlay"] = int(height/2)
     renderables["coords"] = copy.deepcopy(renderables["unscaled_coords"])
     renderables["dualcoords"] = copy.deepcopy(renderables["unscaled_dualcoords"])
     rescale(renderables["coords"], renderables["dualcoords"], window)
